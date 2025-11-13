@@ -1,6 +1,10 @@
 #ifndef _RAFT_NODE_
 #define _RAFT_NODE_
 
+#define MAX_CLIENTS 10
+#define NODES 5
+#define IP_ADDR "127.0.0.1"
+
 typedef struct NodeConfig
 {
     int id;
@@ -26,16 +30,8 @@ typedef struct
     int votesReceived;
 } RaftNode;
 
-typedef enum
-{
-    REQUEST_VOTE,
-    GRANT_VOTE,
-    VOTE_DENIED,
-    HEARTBEAT,
-} peer_req_t;
-
 void init_raft_node(int id, int port, char *wal_name);
-int start_election();
+void start_election(RaftNode *node);
 int send_heartbeat();
 
 #endif

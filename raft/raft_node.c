@@ -1,118 +1,117 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <pthread.h>
-#include <poll.h>
-#include <fcntl.h>
-#include <sys/stat.h>
+#include <unistd.h>
+
 #include "raft_node.h"
 #include "../rpc/rpc.h"
+#include "../wal/wal.h"
 
 RaftNode raft_node;
+CmdQueue command_queue;
 int node_wal_fd;
-
-void *raft_thread(void *arg);
-void *server_thread(void *arg);
-void init_raft_node(int id, int port, char *wal_name);
 
 void persist_state()
 {
-    if (node_wal_fd < 0)
-        return;
-
-    PersistentState state;
-    state.term = raft_node.term;
-    state.votedFor = raft_node.votedFor;
-
     lseek(node_wal_fd, 0, SEEK_SET);
-    write(node_wal_fd, &state, sizeof(PersistentState));
+    PersistentState ps;
+    ps.term = raft_node.term;
+    ps.votedFor = raft_node.votedFor;
+    write(node_wal_fd, &ps, sizeof(ps));
     fsync(node_wal_fd);
 }
 
 void load_persistent_state()
 {
-    if (node_wal_fd < 0)
-        return;
+    lseek(node_wal_fd, 0, SEEK_SET);
+    PersistentState ps;
+    read(node_wal_fd, &ps, sizeof(ps));
 
-    PersistentState state;
-    if (read(node_wal_fd, &state, sizeof(PersistentState)) == sizeof(PersistentState))
+    raft_node.term = ps.term;
+    raft_node.votedFor = ps.votedFor;
+
+    printf("Loaded persistent state: term=%d votedFor=%d\n", ps.term, ps.votedFor);
+}
+
+int append_log_entry_and_persist(const LogEntry *e)
+{
+    int idx = -1;
+    idx = wal_append_entry(node_wal_fd, e, &idx);
+    return idx;
+}
+
+void *raft_thread_func(void *arg)
+{
+    int raft_fd = start_server(raft_node.port);
+    if (raft_fd < 0)
     {
-        raft_node.term = state.term;
-        raft_node.votedFor = state.votedFor;
-        printf("Loaded persistent state: term=%d, votedFor=%d\n", raft_node.term, raft_node.votedFor);
+        printf("Raft server start failed\n");
+        exit(1);
     }
-    else
+
+    printf("Raft Node ID: %d -> Raft server on %d\n", raft_node.id, raft_node.port);
+    handle_raft_polls(raft_fd);
+    return NULL;
+}
+
+void *server_thread_func(void *arg)
+{
+    int server_port = raft_node.port + 1000;
+    int sfd = start_server(server_port);
+    if (sfd < 0)
     {
-        printf("No persistent state found. Initializing.\n");
-        persist_state();
+        printf("Client server start failed\n");
+        exit(1);
     }
+
+    printf("Client Server started on %d\n", server_port);
+    handle_server_polls(sfd);
+    return NULL;
 }
 
 int main(int argc, char **argv)
 {
     if (argc != 4)
     {
-        printf("Usage: %s <node_id> <port> <wal_name>\n", argv[0]);
+        printf("Usage: %s <id> <port> <walfile>\n", argv[0]);
         return 1;
     }
-
     srand(getpid());
-    char wal_path[64];
-    snprintf(wal_path, sizeof(wal_path), "./%s", argv[3]);
-    node_wal_fd = open(wal_path, O_RDWR | O_CREAT, 0666);
+    raft_node.id = atoi(argv[1]);
+    raft_node.port = atoi(argv[2]);
+    strncpy(raft_node.wal_name, argv[3], sizeof(raft_node.wal_name) - 1);
+
+    raft_node.role = FOLLOWER;
+    raft_node.votedFor = -1;
+    raft_node.leader_id = -1;
+    raft_node.log_count = 0;
+    raft_node.commitIndex = -1;
+    raft_node.lastApplied = -1;
+
+    for (int i = 0; i < LOG_CAPACITY; i++)
+        memset(&raft_node.log[i], 0, sizeof(LogEntry));
+
+    node_wal_fd = wal_init(raft_node.wal_name);
     if (node_wal_fd < 0)
     {
-        perror("Error opening WAL file");
+        printf("wal init failed\n");
         return 1;
     }
 
-    init_raft_node(atoi(argv[1]), atoi(argv[2]), argv[3]);
-    printf("raft started : ID : %d, Port : %d, wal file name: %s\n", raft_node.id, raft_node.port, wal_path);
-
-    int raft_fd = start_server(raft_node.port);
-    int server_fd = start_server(raft_node.port + 1000);
-
-    printf("Raft Node ID : %d -> Raft Server started on Port : %d\n", raft_node.id, raft_node.port);
-    printf("Client Server started on Port : %d\n", raft_node.port + 1000);
-
-    pthread_t raft_thread_id, client_thread_id;
-    pthread_create(&raft_thread_id, NULL, raft_thread, &raft_fd);
-    pthread_create(&client_thread_id, NULL, server_thread, &server_fd);
-
-    pthread_join(raft_thread_id, NULL);
-    pthread_join(client_thread_id, NULL);
-
-    close(node_wal_fd);
-    return 0;
-}
-
-void init_raft_node(int id, int port, char *wal_name)
-{
-    raft_node.id = id;
-    raft_node.port = port;
-    strncpy(raft_node.wal_name, wal_name, sizeof(raft_node.wal_name) - 1);
-    raft_node.role = FOLLOWER;
-    raft_node.votesReceived = 0;
-
-    raft_node.log_count = 1;
-    raft_node.log[0].term = 0;
-
-    raft_node.term = 0;
-    raft_node.votedFor = -1;
     load_persistent_state();
-}
+    wal_load_all();
 
-void *raft_thread(void *arg)
-{
-    int raft_listenerFD = *(int *)arg;
-    handle_raft_polls(raft_listenerFD);
-    return NULL;
-}
+    printf("raft started: ID=%d Port=%d WAL=%s\n",
+           raft_node.id, raft_node.port, raft_node.wal_name);
 
-void *server_thread(void *arg)
-{
-    int server_listenerFD = *(int *)arg;
-    handle_server_polls(server_listenerFD);
-    return NULL;
+    pthread_t raft_thread, server_thread;
+
+    pthread_create(&raft_thread, NULL, raft_thread_func, NULL);
+    pthread_create(&server_thread, NULL, server_thread_func, NULL);
+
+    pthread_join(raft_thread, NULL);
+    pthread_join(server_thread, NULL);
+
+    return 0;
 }

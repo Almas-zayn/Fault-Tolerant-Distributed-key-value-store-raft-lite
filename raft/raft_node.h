@@ -1,9 +1,12 @@
 #ifndef _RAFT_NODE_
 #define _RAFT_NODE_
 
+#include "../rpc/rpc.h"
+
 #define MAX_CLIENTS 10
 #define NODES 5
 #define IP_ADDR "127.0.0.1"
+#define LOG_CAPACITY 1024
 
 typedef struct NodeConfig
 {
@@ -21,17 +24,39 @@ typedef enum
 
 typedef struct
 {
+    int term;
+    int votedFor;
+} PersistentState;
+
+typedef struct
+{
     int id;
     int port;
-    int term;
     char wal_name[16];
-    int votedFor;
     NodeRole role;
     int votesReceived;
+
+    int term;
+    int votedFor;
+    LogEntry log[LOG_CAPACITY];
+    int log_count;
+
 } RaftNode;
 
-void init_raft_node(int id, int port, char *wal_name);
-void start_election(RaftNode *node);
-int send_heartbeat();
+typedef struct
+{
+    char key[32];
+    char val[128];
+    int used;
+} kv_t;
+
+extern RaftNode raft_node;
+extern int node_wal_fd;
+
+void persist_state();
+void load_persistent_state();
+
+void handle_raft_polls(int raft_fd);
+void handle_server_polls(int server_fd);
 
 #endif

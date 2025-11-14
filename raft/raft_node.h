@@ -1,23 +1,17 @@
-#ifndef _RAFT_NODE_
-#define _RAFT_NODE_
+#ifndef _RAFT_NODE_H_
+#define _RAFT_NODE_H_
 
 #include "../rpc/rpc.h"
+#include "cmd_queue.h"
 
-#define MAX_CLIENTS 10
 #define NODES 5
 #define IP_ADDR "127.0.0.1"
-#define LOG_CAPACITY 1024
-
-typedef struct NodeConfig
-{
-    int id;
-    int port;
-    char wal_name[16];
-} nodeConfig_t;
+#define LOG_CAPACITY 4096
+#define MAX_CLIENTS 10
 
 typedef enum
 {
-    FOLLOWER,
+    FOLLOWER = 1,
     CANDIDATE,
     LEADER
 } NodeRole;
@@ -32,31 +26,37 @@ typedef struct
 {
     int id;
     int port;
-    char wal_name[16];
+    char wal_name[32];
     NodeRole role;
-    int votesReceived;
 
     int term;
     int votedFor;
+    int votesReceived;
+
     LogEntry log[LOG_CAPACITY];
     int log_count;
 
-} RaftNode;
+    int commitIndex;
+    int lastApplied;
 
-typedef struct
-{
-    char key[32];
-    char val[128];
-    int used;
-} kv_t;
+    int nextIndex[NODES];
+    int matchIndex[NODES];
+
+    int leader_id;
+
+} RaftNode;
 
 extern RaftNode raft_node;
 extern int node_wal_fd;
+extern struct CmdQueue command_queue;
 
 void persist_state();
 void load_persistent_state();
+int append_log_entry_and_persist(const LogEntry *e);
 
-void handle_raft_polls(int raft_fd);
-void handle_server_polls(int server_fd);
+void handle_raft_polls(int fd);
+void handle_server_polls(int fd);
+
+void apply_log_entry(const LogEntry *e);
 
 #endif

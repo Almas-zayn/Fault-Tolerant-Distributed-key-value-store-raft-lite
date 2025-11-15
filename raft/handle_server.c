@@ -125,5 +125,76 @@ void handle_server_polls(int server_fd)
                 }
             }
         }
+        // reading requests
+        for (int i = 0; i < MAX_CLIENTS; i++)
+        {
+            int idx = 1 + i;
+            if (pf[idx].fd != -1 && (pf[idx].revents & POLLIN))
+            {
+                kv_req req;
+                int n = read(pf[idx].fd, &req, sizeof(req));
+                if (n <= 0)
+                {
+                    close(pf[idx].fd);
+                    pf[idx].fd = -1;
+                    clients[i] = -1;
+                    continue;
+                }
+
+                kv_res res;
+                memset(&res, 0, sizeof(res));
+
+                if (req.req_type == GET)
+                {
+                    char buf[MAX_VAL_LEN];
+                    if (kv_get_local(req.key, buf))
+                    {
+                        strncpy(res.value, buf, MAX_VAL_LEN);
+                        res.status = 1;
+                        printf("GET key=%s found=%s\n", req.key, buf);
+                    }
+                    else
+                    {
+                        res.status = 0;
+                        printf("GET key=%s not_found\n", req.key);
+                    }
+
+                    write(pf[idx].fd, &res, sizeof(res));
+                    continue;
+                }
+
+                if (raft_node.role != LEADER)
+                {
+                    res.status = 0;
+                    res.leader_id = raft_node.leader_id;
+                    printf("PUT/DEL forwarded to leader %d\n", raft_node.leader_id);
+                    write(pf[idx].fd, &res, sizeof(res));
+                    continue;
+                }
+
+                LogEntry e;
+                memset(&e, 0, sizeof(e));
+                e.term = raft_node.term;
+                e.command = req;
+
+                int new_index = raft_node.log_count;
+                expected_commit_index = new_index;
+
+                queue_push(&command_queue, &e);
+                printf("Leader received client req, queued index=%d\n", new_index);
+
+                pthread_mutex_lock(&commit_lock);
+                while (raft_node.lastApplied < expected_commit_index)
+                {
+                    pthread_cond_wait(&commit_cv, &commit_lock);
+                }
+                pthread_mutex_unlock(&commit_lock);
+
+                res.status = 1;
+                printf("PUT/DEL committed index=%d\n", expected_commit_index);
+
+                write(pf[idx].fd, &res, sizeof(res));
+            }
+        }
     }
 }

@@ -71,3 +71,59 @@ int kv_del_local(const char *k)
     }
     return 0;
 }
+
+void apply_log_entry(const LogEntry *e)
+{
+    if (e->command.req_type == PUT)
+        kv_put_local(e->command.key, e->command.value);
+    else if (e->command.req_type == DEL)
+        kv_del_local(e->command.key);
+
+    pthread_mutex_lock(&commit_lock);
+    if (expected_commit_index == raft_node.lastApplied)
+        pthread_cond_signal(&commit_cv);
+    pthread_mutex_unlock(&commit_lock);
+}
+
+void handle_server_polls(int server_fd)
+{
+    int clients[MAX_CLIENTS];
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        clients[i] = -1;
+
+    struct pollfd pf[1 + MAX_CLIENTS];
+    pf[0].fd = server_fd;
+    pf[0].events = POLLIN;
+
+    for (int i = 1; i <= MAX_CLIENTS; i++)
+    {
+        pf[i].fd = -1;
+        pf[i].events = POLLIN;
+    }
+
+    while (1)
+    {
+        int r = poll(pf, 1 + MAX_CLIENTS, 100);
+        if (r < 0)
+            continue;
+        // accepting clients
+        if (pf[0].revents & POLLIN)
+        {
+            int c = accept(server_fd, NULL, NULL);
+            if (c >= 0)
+            {
+                for (int i = 0; i < MAX_CLIENTS; i++)
+                {
+                    if (clients[i] == -1)
+                    {
+                        clients[i] = c;
+                        pf[1 + i].fd = c;
+                        fcntl(c, F_SETFL, O_NONBLOCK);
+                        printf("Server: accepted client\n");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}

@@ -45,3 +45,29 @@ int kv_put_local(const char *k, const char *v)
     }
     return 0;
 }
+
+int kv_get_local(const char *k, char *out)
+{
+    for (int i = 0; i < 1024; i++)
+    {
+        if (kv_store[i].used && strcmp(kv_store[i].key, k) == 0)
+        {
+            strncpy(out, kv_store[i].val, sizeof(kv_store[i].val) - 1);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int kv_del_local(const char *k)
+{
+    for (int i = 0; i < 1024; i++)
+    {
+        if (kv_store[i].used && strcmp(kv_store[i].key, k) == 0)
+        {
+            kv_store[i].used = 0;
+            return 1;
+        }
+    }
+    return 0;
+}

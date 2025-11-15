@@ -1,53 +1,75 @@
 #ifndef RPC_H
 #define RPC_H
 
-#include "../raft/raft_node.h"
+#define MAX_KEY_LEN 32
+#define MAX_VAL_LEN 128
+#define MAX_LOG_ENTRIES_PER_RPC 32
 
 typedef enum
 {
-    REQUEST_VOTE,
+    REQUEST_VOTE = 1,
     GRANT_VOTE,
     VOTE_DENIED,
-    HEARTBEAT,
-} raft_req_t;
+    APPEND_ENTRIES,
+    APPEND_RESPONSE
+} raft_req_type;
 
 typedef enum
 {
-    PUT,
+    PUT = 1,
     GET,
-    DEL,
-} kv_req_t;
+    DEL
+} kv_req_type;
 
 typedef struct
 {
-    char key[120];
-    char value[120];
+    kv_req_type req_type;
+    char key[MAX_KEY_LEN];
+    char value[MAX_VAL_LEN];
 } kv_req;
 
 typedef struct
 {
+    int term;
+    kv_req command;
+} LogEntry;
+
+typedef struct
+{
     int status;
-    char msg[120];
+    int leader_id;
+    char value[MAX_VAL_LEN];
 } kv_res;
 
 typedef struct
 {
-    raft_req_t req_type;
+    raft_req_type req_type;
     int term;
     int id;
-} raft_req;
+
+    int last_log_index;
+    int last_log_term;
+
+    int prev_log_index;
+    int prev_log_term;
+
+    int entries_count;
+    LogEntry entries[MAX_LOG_ENTRIES_PER_RPC];
+
+    int leader_commit;
+
+} Raft_Req;
 
 typedef struct
 {
-    raft_req_t res_type;
+    raft_req_type res_type;
     int term;
     int id;
-} raft_res;
+    int success;
+    int match_index;
+} Raft_Res;
 
 int start_server(int port);
-int send_raft_rpc_req(raft_req req);
-int send_raft_rpc_res(raft_res res);
-int send_kv_rpc_res(kv_req req);
-int connect_and_send(int port, void *buf, size_t len);
+int connect_peer(const char *ip, int port);
 
 #endif

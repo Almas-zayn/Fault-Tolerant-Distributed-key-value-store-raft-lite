@@ -20,7 +20,7 @@ int main()
             int port = 5000 + id;
             snprintf(idbuf, sizeof(idbuf), "%d", id);
             snprintf(portbuf, sizeof(portbuf), "%d", port);
-            snprintf(walbuf, sizeof(walbuf), "node%d.log", id);
+            snprintf(walbuf, sizeof(walbuf), "wal-logs/node%d.log", id);
             execlp("./build/raft_node", "raft_node", idbuf, portbuf, walbuf, NULL);
             _exit(1);
         }

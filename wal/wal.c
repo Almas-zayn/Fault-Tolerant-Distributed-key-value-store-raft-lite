@@ -30,6 +30,7 @@ int wal_init(const char *fname)
         memset(&ps, 0, sizeof(ps));
         ps.term = 0;
         ps.votedFor = -1;
+        ps.commitIndex = -1;
         write(fd, &ps, sizeof(ps));
         fsync(fd);
         printf("wal created new header\n");
@@ -52,6 +53,7 @@ void wal_load_all()
     if (data_len <= 0)
     {
         raft_node.log_count = 0;
+        printf("No log entries\n");
         return;
     }
 

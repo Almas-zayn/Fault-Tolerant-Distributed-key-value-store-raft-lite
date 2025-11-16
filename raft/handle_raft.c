@@ -92,7 +92,11 @@ void handle_raft_polls(int fd)
         }
 
         int ret = poll(pf, 1 + NODES, 50);
-
+        if (ret < 0)
+        {
+            perror("poll");
+            exit(1);
+        }
         if (pf[0].revents & POLLIN)
         {
             int c = accept(fd, NULL, NULL);
@@ -236,7 +240,11 @@ void handle_raft_polls(int fd)
                         int new_commit = req.leader_commit;
                         if (new_commit > raft_node.log_count - 1)
                             new_commit = raft_node.log_count - 1;
-                        raft_node.commitIndex = new_commit;
+                        if (new_commit != raft_node.commitIndex)
+                        {
+                            raft_node.commitIndex = new_commit;
+                            persist_state();
+                        }
                     }
 
                     update_commit();

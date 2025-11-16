@@ -22,6 +22,7 @@ typedef struct
 {
     int term;
     int votedFor;
+    int commitIndex;
 } PersistentState;
 
 typedef struct

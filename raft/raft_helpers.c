@@ -14,7 +14,7 @@ void get_last_log(int *idx, int *term)
     *idx = raft_node.log_count - 1;
     if (*idx < 0)
     {
-        *idx = 0;
+        *idx = -1;
         *term = 0;
     }
     else
@@ -47,7 +47,7 @@ void update_commit()
         {
             raft_node.commitIndex = N;
             printf("Node %d: commitIndex advanced to %d\n", raft_node.id, raft_node.commitIndex);
-
+            persist_state();
             while (raft_node.lastApplied < raft_node.commitIndex)
             {
                 raft_node.lastApplied++;
@@ -62,11 +62,13 @@ void update_commit()
 
 void become_follower(int t, int leader)
 {
+    pthread_mutex_lock(&raft_lock);
     raft_node.role = FOLLOWER;
     raft_node.term = t;
     raft_node.votedFor = -1;
     raft_node.leader_id = leader;
     persist_state();
+    pthread_mutex_unlock(&raft_lock);
     printf("Node %d: became follower term=%d leader=%d\n", raft_node.id, t, leader);
 }
 

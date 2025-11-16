@@ -1,5 +1,8 @@
 #include <string.h>
+#include <stdio.h>
 #include <unistd.h>
+#include <pthread.h>
+
 #include "raft_node.h"
 #include "raft_helpers.h"
 
@@ -11,7 +14,7 @@ void leader_replicate_entry(int idx_of_entry)
         if (peer == raft_node.id)
             continue;
 
-        int attempts = 3;
+        int attempts = 10;
         while (attempts--)
         {
             Raft_Req req;
@@ -22,11 +25,7 @@ void leader_replicate_entry(int idx_of_entry)
             req.leader_commit = raft_node.commitIndex;
 
             int next = raft_node.nextIndex[i];
-            if (next - 1 >= 0 && next - 1 < raft_node.log_count)
-                req.prev_log_index = next - 1;
-            else
-                req.prev_log_index = raft_node.log_count - 1;
-
+            req.prev_log_index = next - 1;
             if (req.prev_log_index >= 0 && req.prev_log_index < raft_node.log_count)
                 req.prev_log_term = raft_node.log[req.prev_log_index].term;
             else
@@ -38,25 +37,44 @@ void leader_replicate_entry(int idx_of_entry)
                 req.entries_count = 1;
                 req.entries[0] = raft_node.log[next];
             }
+            else
+            {
+                req.entries_count = 0;
+            }
+
+            printf("Node %d: send AppendEntries to peer %d prev_idx=%d prev_term=%d entries=%d leader_commit=%d\n",
+                   raft_node.id, peer, req.prev_log_index, req.prev_log_term, req.entries_count, req.leader_commit);
 
             Raft_Res res;
             if (!send_append_entries_to_peer(peer, &req, &res))
             {
+                printf("Node %d: failed to contact peer %d while replicating idx=%d\n", raft_node.id, peer, idx_of_entry);
                 usleep(20000);
                 continue;
             }
 
             if (res.success)
             {
+                pthread_mutex_lock(&raft_lock);
                 raft_node.matchIndex[i] = res.match_index;
                 raft_node.nextIndex[i] = res.match_index + 1;
+                pthread_mutex_unlock(&raft_lock);
+
+                printf("Node %d: peer %d acked match_index=%d\n", raft_node.id, peer, res.match_index);
                 update_commit();
                 break;
             }
             else
             {
-                if (raft_node.nextIndex[i] > 1)
-                    raft_node.nextIndex[i]--;
+                pthread_mutex_lock(&raft_lock);
+                raft_node.nextIndex[i]--;
+                if (raft_node.nextIndex[i] < 0)
+                    raft_node.nextIndex[i] = 0;
+                int newnext = raft_node.nextIndex[i];
+                pthread_mutex_unlock(&raft_lock);
+
+                printf("Node %d: peer %d did not match prev log; decrementing nextIndex to %d\n",
+                       raft_node.id, peer, newnext);
             }
         }
     }
@@ -72,7 +90,7 @@ int send_request_vote_to_peer(int peer_id)
     get_last_log(&rv.last_log_index, &rv.last_log_term);
 
     int peer_port = 5000 + peer_id;
-    int tries = 2;
+    int tries = 1;
     while (tries--)
     {
         int s = connect_peer(IP_ADDR, peer_port);
@@ -118,6 +136,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int s = connect_peer(IP_ADDR, peer_port);
         if (s < 0)
         {
+            printf("Node %d: connect_peer failed to %d:%d\n", raft_node.id, peer_id, peer_port);
             usleep(20000);
             continue;
         }
@@ -125,6 +144,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int w = write(s, req, sizeof(*req));
         if (w != sizeof(*req))
         {
+            printf("Node %d: write to peer %d failed (w=%d)\n", raft_node.id, peer_id, w);
             close(s);
             return 0;
         }
@@ -133,7 +153,10 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int r = read(s, &res, sizeof(res));
         close(s);
         if (r != sizeof(res))
+        {
+            printf("Node %d: read from peer %d failed (r=%d)\n", raft_node.id, peer_id, r);
             return 0;
+        }
 
         if (res.term > raft_node.term)
         {
@@ -162,26 +185,43 @@ void leader_send_heartbeat_once()
         req.term = raft_node.term;
         req.id = raft_node.id;
         req.leader_commit = raft_node.commitIndex;
-        req.prev_log_index = raft_node.nextIndex[i] - 1;
+
+        int next = raft_node.nextIndex[i];
+        req.prev_log_index = next - 1;
         if (req.prev_log_index >= 0 && req.prev_log_index < raft_node.log_count)
             req.prev_log_term = raft_node.log[req.prev_log_index].term;
         else
             req.prev_log_term = 0;
-        req.entries_count = 0;
+
+        int last = raft_node.log_count - 1;
+        if (next <= last)
+        {
+            req.entries_count = 1;
+            req.entries[0] = raft_node.log[next];
+        }
+        else
+        {
+            req.entries_count = 0;
+        }
 
         Raft_Res res;
         if (send_append_entries_to_peer(peer, &req, &res))
         {
             if (res.success)
             {
+                pthread_mutex_lock(&raft_lock);
                 raft_node.matchIndex[i] = res.match_index;
                 raft_node.nextIndex[i] = res.match_index + 1;
+                pthread_mutex_unlock(&raft_lock);
                 update_commit();
             }
             else
             {
-                if (raft_node.nextIndex[i] > 1)
-                    raft_node.nextIndex[i]--;
+                pthread_mutex_lock(&raft_lock);
+                raft_node.nextIndex[i]--;
+                if (raft_node.nextIndex[i] < 0)
+                    raft_node.nextIndex[i] = 0;
+                pthread_mutex_unlock(&raft_lock);
             }
         }
     }

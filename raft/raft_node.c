@@ -21,6 +21,7 @@ void persist_state()
     PersistentState ps;
     ps.term = raft_node.term;
     ps.votedFor = raft_node.votedFor;
+    ps.commitIndex = raft_node.commitIndex;
     write(node_wal_fd, &ps, sizeof(ps));
     fsync(node_wal_fd);
 }
@@ -29,12 +30,22 @@ void load_persistent_state()
 {
     lseek(node_wal_fd, 0, SEEK_SET);
     PersistentState ps;
-    read(node_wal_fd, &ps, sizeof(ps));
+    int r = read(node_wal_fd, &ps, sizeof(ps));
+    if (r != sizeof(ps))
+    {
+        raft_node.term = 0;
+        raft_node.votedFor = -1;
+        raft_node.commitIndex = -1;
+        printf("Loaded persistent state: header missing or short; init defaults, Node: %d\n", raft_node.id);
+        return;
+    }
 
     raft_node.term = ps.term;
     raft_node.votedFor = ps.votedFor;
+    raft_node.commitIndex = ps.commitIndex;
 
-    printf("Loaded persistent state: term = %d votedFor = %d ,Node : %d\n", ps.term, ps.votedFor, raft_node.id);
+    printf("Loaded persistent state: term = %d votedFor = %d commitIndex = %d ,Node : %d\n",
+           ps.term, ps.votedFor, ps.commitIndex, raft_node.id);
 }
 
 int append_log_entry_and_persist(const LogEntry *e)
@@ -44,8 +55,28 @@ int append_log_entry_and_persist(const LogEntry *e)
     return idx;
 }
 
+void raft_replay_committed_logs()
+{
+    if (raft_node.commitIndex < 0)
+    {
+        raft_node.lastApplied = -1;
+        return;
+    }
+
+    int max_to_apply = raft_node.commitIndex;
+    if (max_to_apply > raft_node.log_count - 1)
+        max_to_apply = raft_node.log_count - 1;
+
+    for (int i = 0; i <= max_to_apply; i++)
+    {
+        apply_log_entry(&raft_node.log[i]);
+        raft_node.lastApplied = i;
+    }
+}
+
 void *raft_thread_func(void *arg)
 {
+    (void)arg;
     int raft_fd = start_server(raft_node.port);
     if (raft_fd < 0)
     {
@@ -60,6 +91,7 @@ void *raft_thread_func(void *arg)
 
 void *server_thread_func(void *arg)
 {
+    (void)arg;
     int server_port = raft_node.port + 1000;
     int sfd = start_server(server_port);
     if (sfd < 0)
@@ -106,6 +138,7 @@ int main(int argc, char **argv)
 
     load_persistent_state();
     wal_load_all();
+    raft_replay_committed_logs();
 
     pthread_t raft_thread, server_thread;
 

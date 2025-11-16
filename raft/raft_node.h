@@ -1,6 +1,8 @@
 #ifndef _RAFT_NODE_H_
 #define _RAFT_NODE_H_
 
+#include <pthread.h>
+
 #include "../rpc/rpc.h"
 #include "cmd_queue.h"
 
@@ -45,6 +47,8 @@ typedef struct
     int leader_id;
 
 } RaftNode;
+
+extern pthread_mutex_t raft_lock;
 
 extern RaftNode raft_node;
 extern int node_wal_fd;

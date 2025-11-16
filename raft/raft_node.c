@@ -7,10 +7,13 @@
 #include "raft_node.h"
 #include "../rpc/rpc.h"
 #include "../wal/wal.h"
+#include "cmd_queue.h"
 
 RaftNode raft_node;
 CmdQueue command_queue;
 int node_wal_fd;
+
+pthread_mutex_t raft_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void persist_state()
 {
@@ -31,7 +34,7 @@ void load_persistent_state()
     raft_node.term = ps.term;
     raft_node.votedFor = ps.votedFor;
 
-    printf("Loaded persistent state: term=%d votedFor=%d\n", ps.term, ps.votedFor);
+    printf("Loaded persistent state: term = %d votedFor = %d ,Node : %d\n", ps.term, ps.votedFor, raft_node.id);
 }
 
 int append_log_entry_and_persist(const LogEntry *e)
@@ -92,6 +95,8 @@ int main(int argc, char **argv)
     for (int i = 0; i < LOG_CAPACITY; i++)
         memset(&raft_node.log[i], 0, sizeof(LogEntry));
 
+    queue_init(&command_queue);
+
     node_wal_fd = wal_init(raft_node.wal_name);
     if (node_wal_fd < 0)
     {
@@ -101,9 +106,6 @@ int main(int argc, char **argv)
 
     load_persistent_state();
     wal_load_all();
-
-    printf("raft started: ID=%d Port=%d WAL=%s\n",
-           raft_node.id, raft_node.port, raft_node.wal_name);
 
     pthread_t raft_thread, server_thread;
 

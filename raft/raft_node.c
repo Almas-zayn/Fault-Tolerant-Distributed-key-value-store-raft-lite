@@ -8,6 +8,7 @@
 #include "../rpc/rpc.h"
 #include "../wal/wal.h"
 #include "cmd_queue.h"
+#include "../ui/colors.h"
 
 RaftNode raft_node;
 CmdQueue command_queue;
@@ -36,7 +37,7 @@ void load_persistent_state()
         raft_node.term = 0;
         raft_node.votedFor = -1;
         raft_node.commitIndex = -1;
-        printf("Loaded persistent state: header missing or short; init defaults, Node: %d\n", raft_node.id);
+        vprint_error("Loaded persistent state: header missing or short; init defaults, Node: %d\n", raft_node.id);
         return;
     }
 
@@ -44,8 +45,8 @@ void load_persistent_state()
     raft_node.votedFor = ps.votedFor;
     raft_node.commitIndex = ps.commitIndex;
 
-    printf("Loaded persistent state: term = %d votedFor = %d commitIndex = %d ,Node : %d\n",
-           ps.term, ps.votedFor, ps.commitIndex, raft_node.id);
+    vprint_success("Loaded persistent state: term = %d votedFor = %d commitIndex = %d ,Node : %d\n",
+                   ps.term, ps.votedFor, ps.commitIndex, raft_node.id);
 }
 
 int append_log_entry_and_persist(const LogEntry *e)
@@ -80,11 +81,11 @@ void *raft_thread_func(void *arg)
     int raft_fd = start_server(raft_node.port);
     if (raft_fd < 0)
     {
-        printf("Raft server start failed\n");
+        print_error("Raft server start failed\n");
         exit(1);
     }
 
-    printf("Raft Node ID: %d -> Raft server on %d\n", raft_node.id, raft_node.port);
+    // vprint_success("Raft Node ID: %d -> Raft server on %d\n", raft_node.id, raft_node.port);
     handle_raft_polls(raft_fd);
     return NULL;
 }
@@ -96,11 +97,11 @@ void *server_thread_func(void *arg)
     int sfd = start_server(server_port);
     if (sfd < 0)
     {
-        printf("Client server start failed\n");
+        print_error("Client server start failed\n");
         exit(1);
     }
 
-    printf("Client Server started on %d\n", server_port);
+    //  vprint_success("Client Server started on %d\n", server_port);
     handle_server_polls(sfd);
     return NULL;
 }
@@ -109,7 +110,7 @@ int main(int argc, char **argv)
 {
     if (argc != 4)
     {
-        printf("Usage: %s <id> <port> <walfile>\n", argv[0]);
+        vprint_error("Usage: %s <id> <port> <walfile>\n", argv[0]);
         return 1;
     }
     srand(getpid());
@@ -132,7 +133,7 @@ int main(int argc, char **argv)
     node_wal_fd = wal_init(raft_node.wal_name);
     if (node_wal_fd < 0)
     {
-        printf("wal init failed\n");
+        print_error("wal init failed\n");
         return 1;
     }
 

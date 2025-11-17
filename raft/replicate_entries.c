@@ -5,6 +5,7 @@
 
 #include "raft_node.h"
 #include "raft_helpers.h"
+#include "../ui/colors.h"
 
 void leader_replicate_entry(int idx_of_entry)
 {
@@ -42,13 +43,13 @@ void leader_replicate_entry(int idx_of_entry)
                 req.entries_count = 0;
             }
 
-            printf("Node %d: send AppendEntries to peer %d prev_idx=%d prev_term=%d entries=%d leader_commit=%d\n",
-                   raft_node.id, peer, req.prev_log_index, req.prev_log_term, req.entries_count, req.leader_commit);
+            vprint_info("Node %d: send AppendEntries to peer %d prev_idx=%d prev_term=%d entries=%d leader_commit=%d\n",
+                        raft_node.id, peer, req.prev_log_index, req.prev_log_term, req.entries_count, req.leader_commit);
 
             Raft_Res res;
             if (!send_append_entries_to_peer(peer, &req, &res))
             {
-                printf("Node %d: failed to contact peer %d while replicating idx=%d\n", raft_node.id, peer, idx_of_entry);
+                vprint_error("Node %d: failed to contact peer %d while replicating idx=%d\n", raft_node.id, peer, idx_of_entry);
                 usleep(20000);
                 continue;
             }
@@ -60,7 +61,7 @@ void leader_replicate_entry(int idx_of_entry)
                 raft_node.nextIndex[i] = res.match_index + 1;
                 pthread_mutex_unlock(&raft_lock);
 
-                printf("Node %d: peer %d acked match_index=%d\n", raft_node.id, peer, res.match_index);
+                vprint_info("Node %d: peer %d acked match_index = %d\n", raft_node.id, peer, res.match_index);
                 update_commit();
                 break;
             }
@@ -73,8 +74,8 @@ void leader_replicate_entry(int idx_of_entry)
                 int newnext = raft_node.nextIndex[i];
                 pthread_mutex_unlock(&raft_lock);
 
-                printf("Node %d: peer %d did not match prev log; decrementing nextIndex to %d\n",
-                       raft_node.id, peer, newnext);
+                vprint_info("Node %d: peer %d did not match prev log; decrementing nextIndex to %d\n",
+                            raft_node.id, peer, newnext);
             }
         }
     }
@@ -136,7 +137,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int s = connect_peer(IP_ADDR, peer_port);
         if (s < 0)
         {
-            printf("Node %d: connect_peer failed to %d:%d\n", raft_node.id, peer_id, peer_port);
+            vprint_error("Node %d: connect_peer failed to %d:%d\n", raft_node.id, peer_id, peer_port);
             usleep(20000);
             continue;
         }
@@ -144,7 +145,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int w = write(s, req, sizeof(*req));
         if (w != sizeof(*req))
         {
-            printf("Node %d: write to peer %d failed (w=%d)\n", raft_node.id, peer_id, w);
+            vprint_error("Node %d: write to peer %d failed (w=%d)\n", raft_node.id, peer_id, w);
             close(s);
             return 0;
         }
@@ -154,7 +155,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         close(s);
         if (r != sizeof(res))
         {
-            printf("Node %d: read from peer %d failed (r=%d)\n", raft_node.id, peer_id, r);
+            vprint_error("Node %d: read from peer %d failed (r=%d)\n", raft_node.id, peer_id, r);
             return 0;
         }
 

@@ -11,6 +11,7 @@
 #include "../rpc/rpc.h"
 #include "../wal/wal.h"
 #include "raft_helpers.h"
+#include "../ui/colors.h"
 
 void handle_raft_polls(int fd)
 {
@@ -41,44 +42,7 @@ void handle_raft_polls(int fd)
         {
             if (ms - last_hb >= election_timeout)
             {
-                pthread_mutex_lock(&raft_lock);
-                raft_node.role = CANDIDATE;
-                raft_node.term++;
-                raft_node.votedFor = raft_node.id;
-                raft_node.votesReceived = 1;
-                raft_node.leader_id = -1;
-                persist_state();
-                pthread_mutex_unlock(&raft_lock);
-
-                printf("Node %d: starting election term=%d\n", raft_node.id, raft_node.term);
-
-                int votes = 1;
-                for (int i = 0; i < NODES; i++)
-                {
-                    int peer = i + 1;
-                    if (peer == raft_node.id)
-                        continue;
-
-                    int got = send_request_vote_to_peer(peer);
-                    if (got)
-                    {
-                        votes++;
-                        printf("Node %d: got vote from %d (total %d)\n", raft_node.id, peer, votes);
-                    }
-                }
-
-                raft_node.votesReceived = votes;
-                if (raft_node.votesReceived > NODES / 2)
-                {
-                    raft_node.role = LEADER;
-                    raft_node.leader_id = raft_node.id;
-                    init_leader_state();
-                    last_leader_hb = ms;
-                    printf("Node %d: became leader term=%d\n", raft_node.id, raft_node.term);
-                }
-
-                last_hb = ms;
-                election_timeout = 550 + (rand() % 500);
+                start_election(&last_leader_hb, &last_hb, &election_timeout, ms);
             }
         }
 
@@ -154,10 +118,9 @@ void handle_raft_polls(int fd)
                         raft_node.votedFor = req.id;
                         persist_state();
                         res.res_type = GRANT_VOTE;
-                        printf("Node %d: voted for %d\n", raft_node.id, req.id);
+                        vprint_success("Node %d: voted for %d\n", raft_node.id, req.id);
                         last_hb = ms;
                     }
-
                     write(pf[idx].fd, &res, sizeof(res));
                 }
                 else if (req.req_type == APPEND_ENTRIES)
@@ -192,7 +155,7 @@ void handle_raft_polls(int fd)
                         res.success = 0;
                         res.match_index = raft_node.log_count - 1;
                         write(pf[idx].fd, &res, sizeof(res));
-                        printf("Node %d: APPEND_ENTRIES mismatch prev_idx=%d last=%d -> reject\n", raft_node.id, req.prev_log_index, last);
+                        vprint_error("Node %d: APPEND_ENTRIES mismatch prev_idx=%d last=%d -> reject\n", raft_node.id, req.prev_log_index, last);
                         continue;
                     }
 
@@ -205,8 +168,8 @@ void handle_raft_polls(int fd)
 
                         if (pos < raft_node.log_count && raft_node.log[pos].term != le->term)
                         {
-                            printf("Node %d: conflict at pos=%d (existing_term=%d, incoming_term=%d) -> truncating\n",
-                                   raft_node.id, pos, raft_node.log[pos].term, le->term);
+                            vprint_info("Node %d: conflict at pos=%d (existing_term=%d, incoming_term=%d) -> truncating\n",
+                                        raft_node.id, pos, raft_node.log[pos].term, le->term);
 
                             wal_truncate_from(node_wal_fd, pos);
                             raft_node.log_count = pos;
@@ -273,7 +236,7 @@ void handle_raft_polls(int fd)
                 raft_node.log_count++;
                 pthread_mutex_unlock(&raft_lock);
 
-                printf("Node %d: leader appended log index %d\n", raft_node.id, idx);
+                vprint_success("Node %d: leader appended log index %d\n", raft_node.id, idx);
 
                 leader_replicate_entry(idx);
             }

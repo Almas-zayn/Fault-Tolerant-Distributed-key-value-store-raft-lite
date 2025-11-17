@@ -1,10 +1,10 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O2 -I. -I./raft -I./rpc -I./wal
 
-SRC_DIRS = raft rpc wal
 BUILD_DIR = build
 
-POSTMASTER_SRC = postmaster.c
+POSTMASTER_SRC = postmaster.c \
+                  ui/ui.c
 RAFT_NODE_SRC = \
 	raft/raft_node.c \
 	raft/handle_raft.c \
@@ -13,7 +13,8 @@ RAFT_NODE_SRC = \
 	raft/handle_server.c \
 	raft/cmd_queue.c \
 	rpc/network_socket.c \
-	wal/wal.c
+	wal/wal.c \
+	ui/ui.c
 
 POSTMASTER_OBJS = $(patsubst %.c,$(BUILD_DIR)/%.o,$(POSTMASTER_SRC))
 
@@ -35,4 +36,3 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 rebuild: clean all
-

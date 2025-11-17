@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "rpc/rpc.h"
+#include "ui/colors.h"
 
 static int open_conn(int port)
 {
@@ -51,14 +52,14 @@ int main(int argc, char **argv)
 {
     if (argc != 2)
     {
-        printf("Usage: %s <client_port>\n", argv[0]);
+        vprint_error("Usage: %s <client_port>\n", argv[0]);
         return 1;
     }
 
     int port = atoi(argv[1]);
     int sock = -1;
 
-    printf("KV Client started. Connecting to %d...\n", port);
+    vprint_info("KV Client started. Connecting to %d...\n", port);
 
     if (!ensure_connected(&sock, port))
     {
@@ -66,7 +67,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("Connected to server %d\n", port);
+    vprint_success("Connected to server %d\n", port);
 
     char cmd[256];
 
@@ -88,7 +89,7 @@ int main(int argc, char **argv)
         int count = sscanf(cmd, "%s %s %s", op, key, val);
         if (count < 2)
         {
-            printf("invalid\n");
+            print_error("invalid\n");
             continue;
         }
 
@@ -101,7 +102,7 @@ int main(int argc, char **argv)
         {
             if (count < 3)
             {
-                printf("usage: PUT key value\n");
+                print_error("usage: PUT key value\n");
                 continue;
             }
             req.req_type = PUT;
@@ -120,20 +121,20 @@ int main(int argc, char **argv)
         }
         else
         {
-            printf("unknown cmd\n");
+            print_error("unknown cmd\n");
             continue;
         }
 
     retry:
         if (!ensure_connected(&sock, port))
         {
-            printf("connection lost. retrying...\n");
+            print_error("connection lost. retrying...\n");
             goto retry;
         }
 
         if (!send_and_recv(sock, &req, &res))
         {
-            printf("connection error. reconnecting...\n");
+            print_error("connection error. reconnecting...\n");
             close(sock);
             sock = -1;
             goto retry;
@@ -142,31 +143,31 @@ int main(int argc, char **argv)
         if (res.status == 1)
         {
             if (req.req_type == GET)
-                printf("GET %s => %s\n", req.key, res.value);
+                vprint_success("GET %s => %s\n", req.key, res.value);
             else if (req.req_type == PUT)
-                printf("PUT committed\n");
+                vprint_success("PUT committed\n");
             else if (req.req_type == DEL)
-                printf("DEL committed\n");
+                vprint_success("DEL committed\n");
         }
         else
         {
             if (res.leader_id > 0)
             {
                 int new_port = 6000 + res.leader_id;
-                printf("Not leader. Redirecting to leader %d...\n", res.leader_id);
+                vprint_info("Not leader. Redirecting to leader %d...\n", res.leader_id);
 
                 close(sock);
                 sock = -1;
                 port = new_port;
 
-                printf("Connecting to leader on %d...\n", port);
+                vprint_info("Connecting to leader on %d...\n", port);
                 goto retry;
             }
 
             if (req.req_type == GET)
-                printf("GET %s => not_found\n", req.key);
+                vprint_info("GET %s => not_found\n", req.key);
             else
-                printf("operation failed\n");
+                print_error("operation failed\n");
         }
     }
 

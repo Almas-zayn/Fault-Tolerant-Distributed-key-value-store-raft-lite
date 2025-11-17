@@ -16,4 +16,6 @@ void leader_send_heartbeat_once();
 int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res);
 int send_request_vote_to_peer(int peer_id);
 
+void start_election(long *last_leader_hb, long *last_hb, int *election_timeout, long ms);
+
 #endif

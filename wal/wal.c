@@ -6,6 +6,7 @@
 
 #include "wal.h"
 #include "../raft/raft_node.h"
+#include "../ui/colors.h"
 
 static off_t header_size()
 {
@@ -17,7 +18,7 @@ int wal_init(const char *fname)
     int fd = open(fname, O_RDWR | O_CREAT, 0644);
     if (fd < 0)
     {
-        printf("wal open error\n");
+        print_error("wal open error\n");
         return -1;
     }
 
@@ -33,11 +34,7 @@ int wal_init(const char *fname)
         ps.commitIndex = -1;
         write(fd, &ps, sizeof(ps));
         fsync(fd);
-        printf("wal created new header\n");
-    }
-    else
-    {
-        printf("wal loaded existing\n");
+        print_success("wal created new header\n");
     }
 
     return fd;
@@ -53,7 +50,7 @@ void wal_load_all()
     if (data_len <= 0)
     {
         raft_node.log_count = 0;
-        printf("No log entries\n");
+        print_info("No log entries\n");
         return;
     }
 
@@ -70,7 +67,7 @@ void wal_load_all()
     }
 
     raft_node.log_count = entries;
-    printf("wal loaded %d entries\n", entries);
+    vprint_info("wal loaded %d entries\n", entries);
 }
 
 int wal_append_entry(int fd, const LogEntry *e, int *out_index)
@@ -90,7 +87,7 @@ int wal_append_entry(int fd, const LogEntry *e, int *out_index)
 
     if (out_index)
         *out_index = index;
-    printf("wal append index=%d\n", index);
+    vprint_success("wal append index = %d\n", index);
     return index;
 }
 
@@ -101,11 +98,11 @@ int wal_truncate_from(int fd, int index)
 
     if (ftruncate(fd, new_size) < 0)
     {
-        printf("wal truncate error\n");
+        print_error("wal truncate error\n");
         return -1;
     }
 
     fsync(fd);
-    printf("wal truncated to index=%d\n", index);
+    vprint_info("wal truncated to index=%d\n", index);
     return 0;
 }

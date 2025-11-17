@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include "cmd_queue.h"
 
 void queue_init(CmdQueue *q)
@@ -26,6 +27,7 @@ int queue_pop(CmdQueue *q, LogEntry *out)
 
     while (q->count == 0)
     {
+        printf("waiting in queue\n");
         pthread_cond_wait(&q->cond_nonempty, &q->lock);
     }
 

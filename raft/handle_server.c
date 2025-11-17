@@ -9,6 +9,7 @@
 #include "raft_node.h"
 #include "cmd_queue.h"
 #include "../rpc/rpc.h"
+#include "../ui/colors.h"
 
 typedef struct
 {
@@ -106,7 +107,7 @@ void handle_server_polls(int server_fd)
         int r = poll(pf, 1 + MAX_CLIENTS, 100);
         if (r < 0)
             continue;
-        // accepting clients
+
         if (pf[0].revents & POLLIN)
         {
             int c = accept(server_fd, NULL, NULL);
@@ -119,13 +120,13 @@ void handle_server_polls(int server_fd)
                         clients[i] = c;
                         pf[1 + i].fd = c;
                         fcntl(c, F_SETFL, O_NONBLOCK);
-                        printf("Server: accepted client\n");
+                        vprint_success("Server: accepted client\n");
                         break;
                     }
                 }
             }
         }
-        // reading requests
+
         for (int i = 0; i < MAX_CLIENTS; i++)
         {
             int idx = 1 + i;
@@ -151,12 +152,12 @@ void handle_server_polls(int server_fd)
                     {
                         strncpy(res.value, buf, MAX_VAL_LEN);
                         res.status = 1;
-                        printf("GET key=%s found=%s\n", req.key, buf);
+                        vprint_success("GET key=%s found=%s\n", req.key, buf);
                     }
                     else
                     {
                         res.status = 0;
-                        printf("GET key=%s not_found\n", req.key);
+                        vprint_info("GET key=%s not_found\n", req.key);
                     }
 
                     write(pf[idx].fd, &res, sizeof(res));
@@ -167,7 +168,7 @@ void handle_server_polls(int server_fd)
                 {
                     res.status = 0;
                     res.leader_id = raft_node.leader_id;
-                    printf("PUT/DEL forwarded to leader %d\n", raft_node.leader_id);
+                    vprint_info("PUT/DEL forwarded to leader %d\n", raft_node.leader_id);
                     write(pf[idx].fd, &res, sizeof(res));
                     continue;
                 }
@@ -181,7 +182,7 @@ void handle_server_polls(int server_fd)
                 expected_commit_index = new_index;
 
                 queue_push(&command_queue, &e);
-                printf("Leader received client req, queued index=%d\n", new_index);
+                vprint_info("Leader received client req, queued index=%d\n", new_index);
 
                 pthread_mutex_lock(&commit_lock);
                 while (raft_node.lastApplied < expected_commit_index)
@@ -191,7 +192,7 @@ void handle_server_polls(int server_fd)
                 pthread_mutex_unlock(&commit_lock);
 
                 res.status = 1;
-                printf("PUT/DEL committed index=%d\n", expected_commit_index);
+                vprint_info("PUT/DEL committed index=%d\n", expected_commit_index);
 
                 write(pf[idx].fd, &res, sizeof(res));
             }

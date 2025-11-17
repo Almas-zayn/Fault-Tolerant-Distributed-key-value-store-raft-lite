@@ -37,8 +37,6 @@ int start_server(int port)
         close(s);
         return -1;
     }
-
-    printf("listening on %d\n", port);
     return s;
 }
 

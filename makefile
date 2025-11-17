@@ -5,6 +5,7 @@ BUILD_DIR = build
 
 POSTMASTER_SRC = postmaster.c \
                   ui/ui.c
+				  
 RAFT_NODE_SRC = \
 	raft/raft_node.c \
 	raft/handle_raft.c \

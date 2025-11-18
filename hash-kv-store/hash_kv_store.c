@@ -2,16 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define HASH_SIZE 1024
+#include "hash_kv_store.h"
 
-typedef struct kv_entry
-{
-    char key[128];
-    char value[256];
-    struct kv_entry *next;
-} kv_entry_t;
-
-kv_entry_t *hash_table[HASH_SIZE];
+kv_store_t *hash_table[HASH_SIZE];
 
 unsigned long hash(const char *str)
 {
@@ -25,7 +18,7 @@ unsigned long hash(const char *str)
 int kv_put_local(const char *key, const char *value)
 {
     unsigned long idx = hash(key);
-    kv_entry_t *curr = hash_table[idx];
+    kv_store_t *curr = hash_table[idx];
 
     while (curr)
     {
@@ -38,7 +31,7 @@ int kv_put_local(const char *key, const char *value)
         curr = curr->next;
     }
 
-    kv_entry_t *new_entry = malloc(sizeof(kv_entry_t));
+    kv_store_t *new_entry = malloc(sizeof(kv_store_t));
     if (!new_entry)
         return 0;
 
@@ -56,7 +49,7 @@ int kv_put_local(const char *key, const char *value)
 int kv_get_local(const char *key, char *out, size_t out_size)
 {
     unsigned long idx = hash(key);
-    kv_entry_t *curr = hash_table[idx];
+    kv_store_t *curr = hash_table[idx];
 
     while (curr)
     {
@@ -74,8 +67,8 @@ int kv_get_local(const char *key, char *out, size_t out_size)
 int kv_del_local(const char *key)
 {
     unsigned long idx = hash(key);
-    kv_entry_t *curr = hash_table[idx];
-    kv_entry_t *prev = NULL;
+    kv_store_t *curr = hash_table[idx];
+    kv_store_t *prev = NULL;
 
     while (curr)
     {

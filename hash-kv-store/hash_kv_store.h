@@ -3,11 +3,11 @@
 
 #define HASH_SIZE 1024
 
-typedef struct kv_entry
+typedef struct kv_store_t
 {
     char key[256];
     char value[768];
-    struct kv_entry *next;
+    struct kv_store_t *next;
 } kv_store_t;
 
 extern kv_store_t *hash_table[HASH_SIZE];

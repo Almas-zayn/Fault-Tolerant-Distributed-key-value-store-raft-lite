@@ -14,6 +14,7 @@ RAFT_NODE_SRC = \
 	raft/handle_server.c \
 	raft/cmd_queue.c \
 	rpc/network_socket.c \
+	hash-kv-store/hash_kv_store.c \
 	wal/wal.c \
 	ui/ui.c
 

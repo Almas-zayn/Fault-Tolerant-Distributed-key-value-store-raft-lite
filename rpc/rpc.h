@@ -11,7 +11,8 @@ typedef enum
     GRANT_VOTE,
     VOTE_DENIED,
     APPEND_ENTRIES,
-    APPEND_RESPONSE
+    APPEND_RESPONSE,
+    REQUEST_ENTRIES
 } raft_req_type;
 
 typedef enum

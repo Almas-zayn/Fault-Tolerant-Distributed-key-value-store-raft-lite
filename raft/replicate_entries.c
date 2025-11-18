@@ -6,6 +6,7 @@
 #include "raft_node.h"
 #include "raft_helpers.h"
 #include "../ui/colors.h"
+#include "../rpc/rpc.h"
 
 void leader_replicate_entry(int idx_of_entry)
 {
@@ -35,8 +36,16 @@ void leader_replicate_entry(int idx_of_entry)
             int last = raft_node.log_count - 1;
             if (next <= last)
             {
-                req.entries_count = 1;
-                req.entries[0] = raft_node.log[next];
+                int end = next + MAX_LOG_ENTRIES_PER_RPC - 1;
+                if (end > last)
+                    end = last;
+                int cnt = end - next + 1;
+                if (cnt < 0)
+                    cnt = 0;
+
+                req.entries_count = cnt;
+                for (int j = 0; j < cnt; j++)
+                    req.entries[j] = raft_node.log[next + j];
             }
             else
             {
@@ -68,14 +77,24 @@ void leader_replicate_entry(int idx_of_entry)
             else
             {
                 pthread_mutex_lock(&raft_lock);
-                raft_node.nextIndex[i]--;
-                if (raft_node.nextIndex[i] < 0)
-                    raft_node.nextIndex[i] = 0;
-                int newnext = raft_node.nextIndex[i];
+                if (res.res_type == REQUEST_ENTRIES)
+                {
+                    int new_next = res.match_index + 1;
+                    if (new_next < 0)
+                        new_next = 0;
+                    raft_node.nextIndex[i] = new_next;
+                    vprint_info("Node %d: peer %d requested entries; set nextIndex to %d\n",
+                                raft_node.id, peer, raft_node.nextIndex[i]);
+                }
+                else
+                {
+                    raft_node.nextIndex[i]--;
+                    if (raft_node.nextIndex[i] < 0)
+                        raft_node.nextIndex[i] = 0;
+                    vprint_info("Node %d: peer %d did not match prev log; decrementing nextIndex to %d\n",
+                                raft_node.id, peer, raft_node.nextIndex[i]);
+                }
                 pthread_mutex_unlock(&raft_lock);
-
-                vprint_info("Node %d: peer %d did not match prev log; decrementing nextIndex to %d\n",
-                            raft_node.id, peer, newnext);
             }
         }
     }
@@ -197,8 +216,16 @@ void leader_send_heartbeat_once()
         int last = raft_node.log_count - 1;
         if (next <= last)
         {
-            req.entries_count = 1;
-            req.entries[0] = raft_node.log[next];
+            int end = next + MAX_LOG_ENTRIES_PER_RPC - 1;
+            if (end > last)
+                end = last;
+            int cnt = end - next + 1;
+            if (cnt < 0)
+                cnt = 0;
+
+            req.entries_count = cnt;
+            for (int j = 0; j < cnt; j++)
+                req.entries[j] = raft_node.log[next + j];
         }
         else
         {
@@ -219,9 +246,23 @@ void leader_send_heartbeat_once()
             else
             {
                 pthread_mutex_lock(&raft_lock);
-                raft_node.nextIndex[i]--;
-                if (raft_node.nextIndex[i] < 0)
-                    raft_node.nextIndex[i] = 0;
+                if (res.res_type == REQUEST_ENTRIES)
+                {
+                    int new_next = res.match_index + 1;
+                    if (new_next < 0)
+                        new_next = 0;
+                    raft_node.nextIndex[i] = new_next;
+                    vprint_info("Node %d: heartbeat -> peer %d requested entries; set nextIndex to %d\n",
+                                raft_node.id, peer, raft_node.nextIndex[i]);
+                }
+                else
+                {
+                    raft_node.nextIndex[i]--;
+                    if (raft_node.nextIndex[i] < 0)
+                        raft_node.nextIndex[i] = 0;
+                    vprint_info("Node %d: heartbeat -> peer %d mismatch; nextIndex now %d\n",
+                                raft_node.id, peer, raft_node.nextIndex[i]);
+                }
                 pthread_mutex_unlock(&raft_lock);
             }
         }

@@ -40,12 +40,31 @@ static int send_and_recv(int s, kv_req *req, kv_res *res)
     return 1;
 }
 
-static int ensure_connected(int *sock, int port)
+static int ensure_connected(int *sock, int *port)
 {
     if (*sock >= 0)
         return 1;
-    *sock = open_conn(port);
-    return (*sock >= 0);
+
+    *sock = open_conn(*port);
+    if (*sock >= 0)
+        return 1;
+
+    vprint_error("Primary server %d not available. Trying fallback servers...\n", *port);
+
+    for (int p = 6001; p <= 6005; p++)
+    {
+        int s = open_conn(p);
+        if (s >= 0)
+        {
+            vprint_success("Connected to fallback server %d\n", p);
+            *sock = s;
+            *port = p;
+            return 1;
+        }
+    }
+    *port = 6001;
+
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -61,7 +80,7 @@ int main(int argc, char **argv)
 
     vprint_info("KV Client started. Connecting to %d...\n", port);
 
-    if (!ensure_connected(&sock, port))
+    if (!ensure_connected(&sock, &port))
     {
         printf("Initial connection failed.\n");
         return 1;
@@ -126,11 +145,8 @@ int main(int argc, char **argv)
         }
 
     retry:
-        if (!ensure_connected(&sock, port))
-        {
-            print_error("connection lost. retrying...\n");
+        if (!ensure_connected(&sock, &port))
             goto retry;
-        }
 
         if (!send_and_recv(sock, &req, &res))
         {

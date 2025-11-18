@@ -153,6 +153,7 @@ void handle_raft_polls(int fd)
                         (req.prev_log_index >= 0 && raft_node.log[req.prev_log_index].term != req.prev_log_term))
                     {
                         res.success = 0;
+                        res.res_type = REQUEST_ENTRIES;
                         res.match_index = raft_node.log_count - 1;
                         write(pf[idx].fd, &res, sizeof(res));
                         vprint_error("Node %d: APPEND_ENTRIES mismatch prev_idx = %d last = %d -> reject\n", raft_node.id, req.prev_log_index, last);

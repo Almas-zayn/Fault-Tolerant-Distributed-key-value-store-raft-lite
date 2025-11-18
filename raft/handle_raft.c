@@ -155,7 +155,7 @@ void handle_raft_polls(int fd)
                         res.success = 0;
                         res.match_index = raft_node.log_count - 1;
                         write(pf[idx].fd, &res, sizeof(res));
-                        vprint_error("Node %d: APPEND_ENTRIES mismatch prev_idx=%d last=%d -> reject\n", raft_node.id, req.prev_log_index, last);
+                        vprint_error("Node %d: APPEND_ENTRIES mismatch prev_idx = %d last = %d -> reject\n", raft_node.id, req.prev_log_index, last);
                         continue;
                     }
 
@@ -168,7 +168,7 @@ void handle_raft_polls(int fd)
 
                         if (pos < raft_node.log_count && raft_node.log[pos].term != le->term)
                         {
-                            vprint_info("Node %d: conflict at pos=%d (existing_term=%d, incoming_term=%d) -> truncating\n",
+                            vprint_info("Node %d: conflict at pos = %d (existing_term = %d, incoming_term = %d) -> truncating\n",
                                         raft_node.id, pos, raft_node.log[pos].term, le->term);
 
                             wal_truncate_from(node_wal_fd, pos);
@@ -180,7 +180,7 @@ void handle_raft_polls(int fd)
                             int wal_idx = append_log_entry_and_persist(le);
                             if (wal_idx != pos)
                             {
-                                fprintf(stderr, "Node %d: ERROR: wal returned idx=%d expected=%d — aborting to avoid divergence\n",
+                                fprintf(stderr, "Node %d: ERROR: wal returned idx = %d expected = %d — aborting to avoid divergence\n",
                                         raft_node.id, wal_idx, pos);
                                 pthread_mutex_unlock(&raft_lock);
                                 exit(1);

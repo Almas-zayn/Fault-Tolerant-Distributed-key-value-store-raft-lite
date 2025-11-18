@@ -43,13 +43,13 @@ void leader_replicate_entry(int idx_of_entry)
                 req.entries_count = 0;
             }
 
-            vprint_info("Node %d: send AppendEntries to peer %d prev_idx=%d prev_term=%d entries=%d leader_commit=%d\n",
+            vprint_info("Node %d: send AppendEntries to peer %d prev_idx = %d prev_term = %d entries = %d leader_commit = %d\n",
                         raft_node.id, peer, req.prev_log_index, req.prev_log_term, req.entries_count, req.leader_commit);
 
             Raft_Res res;
             if (!send_append_entries_to_peer(peer, &req, &res))
             {
-                vprint_error("Node %d: failed to contact peer %d while replicating idx=%d\n", raft_node.id, peer, idx_of_entry);
+                vprint_error("Node %d: failed to contact peer %d while replicating idx = %d\n", raft_node.id, peer, idx_of_entry);
                 usleep(20000);
                 continue;
             }
@@ -145,7 +145,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int w = write(s, req, sizeof(*req));
         if (w != sizeof(*req))
         {
-            vprint_error("Node %d: write to peer %d failed (w=%d)\n", raft_node.id, peer_id, w);
+            vprint_error("Node %d: write to peer %d failed (w = %d)\n", raft_node.id, peer_id, w);
             close(s);
             return 0;
         }
@@ -155,7 +155,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         close(s);
         if (r != sizeof(res))
         {
-            vprint_error("Node %d: read from peer %d failed (r=%d)\n", raft_node.id, peer_id, r);
+            vprint_error("Node %d: read from peer %d failed (r = %d)\n", raft_node.id, peer_id, r);
             return 0;
         }
 

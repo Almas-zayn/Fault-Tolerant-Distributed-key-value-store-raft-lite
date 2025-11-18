@@ -10,68 +10,11 @@
 #include "cmd_queue.h"
 #include "../rpc/rpc.h"
 #include "../ui/colors.h"
-
-typedef struct
-{
-    char key[32];
-    char val[128];
-    int used;
-} kv_t;
-
-kv_t kv_store[1024];
+#include "../hash-kv-store/hash_kv_store.h"
 
 pthread_mutex_t commit_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t commit_cv = PTHREAD_COND_INITIALIZER;
 int expected_commit_index = -1;
-
-int kv_put_local(const char *k, const char *v)
-{
-    for (int i = 0; i < 1024; i++)
-    {
-        if (kv_store[i].used && strcmp(kv_store[i].key, k) == 0)
-        {
-            strncpy(kv_store[i].val, v, sizeof(kv_store[i].val) - 1);
-            return 1;
-        }
-    }
-    for (int i = 0; i < 1024; i++)
-    {
-        if (!kv_store[i].used)
-        {
-            kv_store[i].used = 1;
-            strncpy(kv_store[i].key, k, sizeof(kv_store[i].key) - 1);
-            strncpy(kv_store[i].val, v, sizeof(kv_store[i].val) - 1);
-            return 1;
-        }
-    }
-    return 0;
-}
-
-int kv_get_local(const char *k, char *out)
-{
-    for (int i = 0; i < 1024; i++)
-    {
-        if (kv_store[i].used && strcmp(kv_store[i].key, k) == 0)
-        {
-            strncpy(out, kv_store[i].val, sizeof(kv_store[i].val) - 1);
-            return 1;
-        }
-    }
-    return 0;
-}
-
-int kv_del_local(const char *k)
-{
-    for (int i = 0; i < 1024; i++)
-    {
-        if (kv_store[i].used && strcmp(kv_store[i].key, k) == 0)
-        {
-            kv_store[i].used = 0;
-            return 1;
-        }
-    }
-    return 0;
-}
 
 void apply_log_entry(const LogEntry *e)
 {
@@ -148,16 +91,16 @@ void handle_server_polls(int server_fd)
                 if (req.req_type == GET)
                 {
                     char buf[MAX_VAL_LEN];
-                    if (kv_get_local(req.key, buf))
+                    if (kv_get_local(req.key, buf, MAX_VAL_LEN))
                     {
                         strncpy(res.value, buf, MAX_VAL_LEN);
                         res.status = 1;
-                        vprint_success("GET key=%s found=%s\n", req.key, buf);
+                        vprint_success("GET key = %s found = %s\n", req.key, buf);
                     }
                     else
                     {
                         res.status = 0;
-                        vprint_info("GET key=%s not_found\n", req.key);
+                        vprint_info("GET key = %s not_found\n", req.key);
                     }
 
                     write(pf[idx].fd, &res, sizeof(res));
@@ -168,7 +111,7 @@ void handle_server_polls(int server_fd)
                 {
                     res.status = 0;
                     res.leader_id = raft_node.leader_id;
-                    vprint_info("PUT/DEL forwarded to leader %d\n", raft_node.leader_id);
+                    vprint_info("%s forwarded to leader %d\n", req.req_type == PUT ? "PUT" : "DEL", raft_node.leader_id);
                     write(pf[idx].fd, &res, sizeof(res));
                     continue;
                 }
@@ -182,7 +125,7 @@ void handle_server_polls(int server_fd)
                 expected_commit_index = new_index;
 
                 queue_push(&command_queue, &e);
-                vprint_info("Leader received client req, queued index=%d\n", new_index);
+                vprint_info("Leader received client req, queued index = %d\n", new_index);
 
                 pthread_mutex_lock(&commit_lock);
                 while (raft_node.lastApplied < expected_commit_index)
@@ -192,7 +135,7 @@ void handle_server_polls(int server_fd)
                 pthread_mutex_unlock(&commit_lock);
 
                 res.status = 1;
-                vprint_info("PUT/DEL committed index=%d\n", expected_commit_index);
+                vprint_info("PUT/DEL committed index = %d\n", expected_commit_index);
 
                 write(pf[idx].fd, &res, sizeof(res));
             }

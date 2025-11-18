@@ -70,7 +70,7 @@ void wal_load_all()
     vprint_info("wal loaded %d entries\n", entries);
 }
 
-int wal_append_entry(int fd, const LogEntry *e, int *out_index)
+int wal_append_entry(int fd, const LogEntry *e)
 {
     off_t sz = lseek(fd, 0, SEEK_END);
     if (sz == (off_t)-1)
@@ -85,8 +85,6 @@ int wal_append_entry(int fd, const LogEntry *e, int *out_index)
 
     fsync(fd);
 
-    if (out_index)
-        *out_index = index;
     vprint_success("wal append index = %d\n", index);
     return index;
 }

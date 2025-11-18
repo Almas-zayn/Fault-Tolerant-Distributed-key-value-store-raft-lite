@@ -52,7 +52,7 @@ void load_persistent_state()
 int append_log_entry_and_persist(const LogEntry *e)
 {
     int idx = -1;
-    idx = wal_append_entry(node_wal_fd, e, &idx);
+    idx = wal_append_entry(node_wal_fd, e);
     return idx;
 }
 

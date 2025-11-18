@@ -11,7 +11,6 @@ Raft is a **distributed consensus algorithm** used to maintain a replicated log 
 
 * **Leader Election** – A single leader manages the cluster; followers replicate the leader’s log.
 * **Log Replication** – Client commands are appended to the leader log and replicated to followers.
-* **Commit Mechanism** – Entries are considered *committed* when a majority stores them.
 * **Fault Tolerance** – System continues even if some nodes crash, as long as a majority stay alive.
 * **Ease of Understanding** – Raft is designed to be simpler to understand compared to Paxos.
 

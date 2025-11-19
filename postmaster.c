@@ -27,7 +27,7 @@ int main()
             snprintf(idbuf, sizeof(idbuf), "%d", id);
             snprintf(portbuf, sizeof(portbuf), "%d", port);
             snprintf(walbuf, sizeof(walbuf), "wal-logs/node%d.log", id);
-            vprint_success("%5s    | %7s      | %7d       |     %7s    |", idbuf, portbuf, 6000 + id, walbuf);
+            vprint_success("%5s      | %7s      | %7d       |     %7s    |", idbuf, portbuf, 6000 + id, walbuf);
             if (node == NODES - 1)
             {
                 printf("  ------------------------------------------------------------------------------------\n\n\n");

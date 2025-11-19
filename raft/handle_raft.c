@@ -118,7 +118,7 @@ void handle_raft_polls(int fd)
                         raft_node.votedFor = req.id;
                         persist_state();
                         res.res_type = GRANT_VOTE;
-                        vprint_success("Node %d: voted for %d\n", raft_node.id, req.id);
+                        vprint_success("Node %d [ %s ]: voted for %d\n", raft_node.id, node_state(), req.id);
                         last_hb = ms;
                     }
                     write(pf[idx].fd, &res, sizeof(res));
@@ -131,16 +131,6 @@ void handle_raft_polls(int fd)
                     res.term = raft_node.term;
                     res.id = raft_node.id;
                     res.res_type = APPEND_RESPONSE;
-                    // printf("Node %d: Received APPEND_ENTRIES from %d term=%d prev_idx=%d prev_term=%d entries=%d leader_commit=%d\n",
-                    //        raft_node.id, req.id, req.term, req.prev_log_index, req.prev_log_term, req.entries_count, req.leader_commit);
-
-                    if (req.term < raft_node.term)
-                    {
-                        res.success = 0;
-                        write(pf[idx].fd, &res, sizeof(res));
-                        //   printf("Node %d: APPEND_ENTRIES rejected (term too old). my_term=%d req.term=%d\n", raft_node.id, raft_node.term, req.term);
-                        continue;
-                    }
 
                     raft_node.leader_id = req.id;
                     last_hb = ms;
@@ -156,7 +146,7 @@ void handle_raft_polls(int fd)
                         res.res_type = REQUEST_ENTRIES;
                         res.match_index = raft_node.log_count - 1;
                         write(pf[idx].fd, &res, sizeof(res));
-                        vprint_error("Node %d: APPEND_ENTRIES mismatch prev_idx = %d last = %d -> reject\n", raft_node.id, req.prev_log_index, last);
+                        vprint_error("Node %d [ %s ]: APPEND_ENTRIES mismatch (from req)prev_idx = %d last = %d -> reject\n", raft_node.id, node_state(), req.prev_log_index, last);
                         continue;
                     }
 
@@ -169,8 +159,8 @@ void handle_raft_polls(int fd)
 
                         if (pos < raft_node.log_count && raft_node.log[pos].term != le->term)
                         {
-                            vprint_info("Node %d: conflict at pos = %d (existing_term = %d, incoming_term = %d) -> truncating\n",
-                                        raft_node.id, pos, raft_node.log[pos].term, le->term);
+                            vprint_info("Node %d [ %s ]: conflict at pos = %d (existing_term = %d, incoming_term = %d) -> truncating\n",
+                                        raft_node.id, node_state(), pos, raft_node.log[pos].term, le->term);
 
                             wal_truncate_from(node_wal_fd, pos);
                             raft_node.log_count = pos;
@@ -181,8 +171,8 @@ void handle_raft_polls(int fd)
                             int wal_idx = append_log_entry_and_persist(le);
                             if (wal_idx != pos)
                             {
-                                fprintf(stderr, "Node %d: ERROR: wal returned idx = %d expected = %d — aborting to avoid divergence\n",
-                                        raft_node.id, wal_idx, pos);
+                                fprintf(stderr, "Node %d [ %s ]: ERROR: wal returned idx = %d expected = %d — aborting to avoid divergence\n",
+                                        raft_node.id, node_state(), wal_idx, pos);
                                 pthread_mutex_unlock(&raft_lock);
                                 exit(1);
                             }
@@ -211,13 +201,18 @@ void handle_raft_polls(int fd)
                         }
                     }
 
+                    while (raft_node.lastApplied < raft_node.commitIndex)
+                    {
+                        vprint_info("Node %d [ %s ]: Appending missing logs to local", raft_node.id, node_state());
+                        raft_node.lastApplied++;
+                        apply_log_entry(&raft_node.log[raft_node.lastApplied]);
+                    }
+
                     update_commit();
 
                     res.success = 1;
                     res.match_index = raft_node.log_count - 1;
                     write(pf[idx].fd, &res, sizeof(res));
-                    //  printf("Node %d: APPEND_ENTRIES applied up to index=%d, commitIndex=%d lastApplied=%d\n",
-                    //         raft_node.id, raft_node.log_count - 1, raft_node.commitIndex, raft_node.lastApplied);
                 }
             }
         }
@@ -237,7 +232,7 @@ void handle_raft_polls(int fd)
                 raft_node.log_count++;
                 pthread_mutex_unlock(&raft_lock);
 
-                vprint_success("Node %d: leader appended log index %d\n", raft_node.id, idx);
+                vprint_success("Node %d [ %s ]: appended log index %d\n", raft_node.id, node_state(), idx);
 
                 leader_replicate_entry(idx);
             }

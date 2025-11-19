@@ -52,13 +52,13 @@ void leader_replicate_entry(int idx_of_entry)
                 req.entries_count = 0;
             }
 
-            vprint_info("Node %d: send AppendEntries to peer %d prev_idx = %d prev_term = %d entries = %d leader_commit = %d\n",
-                        raft_node.id, peer, req.prev_log_index, req.prev_log_term, req.entries_count, req.leader_commit);
+            vprint_info("Node %d [ %s ]: send AppendEntries to peer %d prev_idx = %d prev_term = %d entries = %d leader_commit = %d\n",
+                        raft_node.id, node_state(), peer, req.prev_log_index, req.prev_log_term, req.entries_count, req.leader_commit);
 
             Raft_Res res;
             if (!send_append_entries_to_peer(peer, &req, &res))
             {
-                vprint_error("Node %d: failed to contact peer %d while replicating idx = %d\n", raft_node.id, peer, idx_of_entry);
+                vprint_error("Node %d [ %s ]: failed to contact peer %d while replicating idx = %d\n", raft_node.id, node_state(), peer, idx_of_entry);
                 usleep(200);
                 continue;
             }
@@ -70,7 +70,7 @@ void leader_replicate_entry(int idx_of_entry)
                 raft_node.nextIndex[i] = res.match_index + 1;
                 pthread_mutex_unlock(&raft_lock);
 
-                vprint_info("Node %d: peer %d acked match_index = %d\n", raft_node.id, peer, res.match_index);
+                vprint_info("Node %d [ %s ]: peer %d acked match_index = %d\n", raft_node.id, node_state(), peer, res.match_index);
                 update_commit();
                 break;
             }
@@ -83,16 +83,16 @@ void leader_replicate_entry(int idx_of_entry)
                     if (new_next < 0)
                         new_next = 0;
                     raft_node.nextIndex[i] = new_next;
-                    vprint_info("Node %d: peer %d requested entries; set nextIndex to %d\n",
-                                raft_node.id, peer, raft_node.nextIndex[i]);
+                    vprint_info("Node %d [ %s ]: peer %d requested entries; set nextIndex to %d\n",
+                                raft_node.id, node_state(), peer, raft_node.nextIndex[i]);
                 }
                 else
                 {
                     raft_node.nextIndex[i]--;
                     if (raft_node.nextIndex[i] < 0)
                         raft_node.nextIndex[i] = 0;
-                    vprint_info("Node %d: peer %d did not match prev log; decrementing nextIndex to %d\n",
-                                raft_node.id, peer, raft_node.nextIndex[i]);
+                    vprint_info("Node %d [ %s ]: peer %d did not match prev log; decrementing nextIndex to %d\n",
+                                raft_node.id, node_state(), peer, raft_node.nextIndex[i]);
                 }
                 pthread_mutex_unlock(&raft_lock);
             }
@@ -164,7 +164,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int w = write(s, req, sizeof(*req));
         if (w != sizeof(*req))
         {
-            vprint_error("Node %d: write to peer %d failed (w = %d)\n", raft_node.id, peer_id, w);
+            vprint_error("Node %d [ %s ]: write to peer %d failed (w = %d)\n", raft_node.id, node_state(), peer_id, w);
             close(s);
             return 0;
         }
@@ -174,7 +174,7 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         close(s);
         if (r != sizeof(res))
         {
-            vprint_error("Node %d: read from peer %d failed (r = %d)\n", raft_node.id, peer_id, r);
+            vprint_error("Node %d [ %s ]: read from peer %d failed (r = %d)\n", raft_node.id, node_state(), peer_id, r);
             return 0;
         }
 
@@ -252,16 +252,16 @@ void leader_send_heartbeat_once()
                     if (new_next < 0)
                         new_next = 0;
                     raft_node.nextIndex[i] = new_next;
-                    vprint_info("Node %d: heartbeat -> peer %d requested entries; set nextIndex to %d\n",
-                                raft_node.id, peer, raft_node.nextIndex[i]);
+                    vprint_info("Node %d [ %s ]: heartbeat -> peer %d requested entries; set nextIndex to %d\n",
+                                raft_node.id, node_state(), peer, raft_node.nextIndex[i]);
                 }
                 else
                 {
                     raft_node.nextIndex[i]--;
                     if (raft_node.nextIndex[i] < 0)
                         raft_node.nextIndex[i] = 0;
-                    vprint_info("Node %d: heartbeat -> peer %d mismatch; nextIndex now %d\n",
-                                raft_node.id, peer, raft_node.nextIndex[i]);
+                    vprint_info("Node %d [ %s ]: heartbeat -> peer %d mismatch; nextIndex now %d\n",
+                                raft_node.id, node_state(), peer, raft_node.nextIndex[i]);
                 }
                 pthread_mutex_unlock(&raft_lock);
             }

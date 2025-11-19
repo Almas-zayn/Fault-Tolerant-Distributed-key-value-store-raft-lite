@@ -63,7 +63,7 @@ void handle_server_polls(int server_fd)
                         clients[i] = c;
                         pf[1 + i].fd = c;
                         fcntl(c, F_SETFL, O_NONBLOCK);
-                        vprint_success("Server: accepted client\n");
+                        vprint_success("[ Server ] : accepted client\n");
                         break;
                     }
                 }
@@ -95,12 +95,12 @@ void handle_server_polls(int server_fd)
                     {
                         strncpy(res.value, buf, MAX_VAL_LEN);
                         res.status = 1;
-                        vprint_success("GET key = %s found = %s\n", req.key, buf);
+                        vprint_success("[ SERVER RESPONSE ] : GET key = %s found = %s\n", req.key, buf);
                     }
                     else
                     {
                         res.status = 0;
-                        vprint_info("GET key = %s not_found\n", req.key);
+                        vprint_info("[ SERVER RESPONSE ] : GET key = %s not_found\n", req.key);
                     }
 
                     write(pf[idx].fd, &res, sizeof(res));
@@ -111,7 +111,7 @@ void handle_server_polls(int server_fd)
                 {
                     res.status = 0;
                     res.leader_id = raft_node.leader_id;
-                    vprint_info("%s forwarded to leader %d\n", req.req_type == PUT ? "PUT" : "DEL", raft_node.leader_id);
+                    vprint_info("%s[ SERVER RESPONSE ] : forwarded to leader %d\n", req.req_type == PUT ? "PUT" : "DEL", raft_node.leader_id);
                     write(pf[idx].fd, &res, sizeof(res));
                     continue;
                 }

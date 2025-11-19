@@ -3,6 +3,8 @@
 
 #include "../rpc/rpc.h"
 
+char *node_state();
+
 void init_leader_state();
 void become_follower(int t, int leader);
 

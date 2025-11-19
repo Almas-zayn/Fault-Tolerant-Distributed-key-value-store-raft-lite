@@ -5,6 +5,16 @@
 #include "raft_helpers.h"
 #include "../ui/colors.h"
 
+char *node_state()
+{
+    if (raft_node.role == LEADER)
+        return "LEADER";
+    else if (raft_node.role == FOLLOWER)
+        return "FOLLOWER";
+    else
+        return "CANDIDATE";
+}
+
 long now_ms()
 {
     struct timespec ts;
@@ -37,7 +47,7 @@ void start_election(long *last_leader_hb, long *last_hb, int *election_timeout, 
     persist_state();
     pthread_mutex_unlock(&raft_lock);
 
-    vprint_info("Node %d: starting election for term = %d\n", raft_node.id, raft_node.term);
+    vprint_info_candidate("Node %d [ %s ]: Became CANDIDATE, starting election for term = %d\n", raft_node.id, node_state(), raft_node.term);
 
     int votes = 1;
     for (int i = 0; i < NODES; i++)
@@ -50,7 +60,7 @@ void start_election(long *last_leader_hb, long *last_hb, int *election_timeout, 
         if (got)
         {
             votes++;
-            vprint_info("Node %d: got vote from %d (total %d)\n", raft_node.id, peer, votes);
+            vprint_info("Node %d [ %s ]: got vote from %d (total %d)\n", raft_node.id, node_state(), peer, votes);
         }
     }
 
@@ -61,7 +71,7 @@ void start_election(long *last_leader_hb, long *last_hb, int *election_timeout, 
         raft_node.leader_id = raft_node.id;
         init_leader_state();
         *last_leader_hb = ms;
-        vprint_success("Node %d: became leader for term = %d\n", raft_node.id, raft_node.term);
+        vprint_success_leader("Node %d [ %s ]: became leader for term = %d\n", raft_node.id, node_state(), raft_node.term);
     }
 
     *last_hb = ms;
@@ -91,13 +101,13 @@ void update_commit()
         if (count > NODES / 2)
         {
             raft_node.commitIndex = N;
-            vprint_info("Node %d: commitIndex advanced to %d\n", raft_node.id, raft_node.commitIndex);
+            vprint_info("Node %d [ %s ]: commitIndex advanced to %d\n", raft_node.id, node_state(), raft_node.commitIndex);
             persist_state();
             while (raft_node.lastApplied < raft_node.commitIndex)
             {
                 raft_node.lastApplied++;
                 apply_log_entry(&raft_node.log[raft_node.lastApplied]);
-                vprint_info("Node %d: applied log index %d\n", raft_node.id, raft_node.lastApplied);
+                vprint_info("Node %d [ %s ]: applied log index %d\n", raft_node.id, node_state(), raft_node.lastApplied);
             }
 
             break;
@@ -114,7 +124,7 @@ void become_follower(int t, int leader)
     raft_node.leader_id = leader;
     persist_state();
     pthread_mutex_unlock(&raft_lock);
-    vprint_info("Node %d: became follower for term = %d, voted to Node : %d\n", raft_node.id, t, leader);
+    vprint_info("Node %d [ %s ]: became follower for term = %d, voted to Node : %d\n", raft_node.id, node_state(), t, leader);
 }
 
 void init_leader_state()

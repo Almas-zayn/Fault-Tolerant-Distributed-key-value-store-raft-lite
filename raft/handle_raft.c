@@ -243,4 +243,8 @@ void handle_raft_polls(int fd)
             }
         }
     }
+    for (int i = 0; i < NODES; i++)
+    {
+        close(in_fd[i]);
+    }
 }

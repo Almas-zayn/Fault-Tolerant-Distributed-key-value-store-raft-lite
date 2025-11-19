@@ -59,7 +59,7 @@ void leader_replicate_entry(int idx_of_entry)
             if (!send_append_entries_to_peer(peer, &req, &res))
             {
                 vprint_error("Node %d: failed to contact peer %d while replicating idx = %d\n", raft_node.id, peer, idx_of_entry);
-                usleep(20000);
+                usleep(200);
                 continue;
             }
 
@@ -156,8 +156,8 @@ int send_append_entries_to_peer(int peer_id, Raft_Req *req, Raft_Res *out_res)
         int s = connect_peer(IP_ADDR, peer_port);
         if (s < 0)
         {
-            vprint_error("Node %d: connect_peer failed to %d:%d\n", raft_node.id, peer_id, peer_port);
-            usleep(20000);
+            // vprint_error("Node %d: connect_peer failed to %d:%d\n", raft_node.id, peer_id, peer_port);
+            usleep(50);
             continue;
         }
 

@@ -123,6 +123,6 @@ void init_leader_state()
     for (int i = 0; i < NODES; i++)
     {
         raft_node.nextIndex[i] = last + 1;
-        raft_node.matchIndex[i] = 0;
+        raft_node.matchIndex[i] = last;
     }
 }

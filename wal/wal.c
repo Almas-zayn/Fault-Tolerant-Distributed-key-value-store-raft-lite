@@ -18,7 +18,7 @@ int wal_init(const char *fname)
     int fd = open(fname, O_RDWR | O_CREAT, 0644);
     if (fd < 0)
     {
-        print_error("wal open error\n");
+        print_error("( WAL - INFO ) : wal open error\n");
         return -1;
     }
 
@@ -34,7 +34,7 @@ int wal_init(const char *fname)
         ps.commitIndex = -1;
         write(fd, &ps, sizeof(ps));
         fsync(fd);
-        print_success("wal created new header\n");
+        print_success("( WAL - INFO ) : wal created new header\n");
     }
 
     return fd;
@@ -50,7 +50,7 @@ void wal_load_all()
     if (data_len <= 0)
     {
         raft_node.log_count = 0;
-        print_info("No log entries\n");
+        print_info("( WAL - INFO ) : No log entries\n");
         return;
     }
 
@@ -67,7 +67,7 @@ void wal_load_all()
     }
 
     raft_node.log_count = entries;
-    vprint_info("wal loaded %d entries\n", entries);
+    vprint_info("( WAL - INFO ) : wal loaded %d entries\n", entries);
 }
 
 int wal_append_entry(int fd, const LogEntry *e)
@@ -85,7 +85,7 @@ int wal_append_entry(int fd, const LogEntry *e)
 
     fsync(fd);
 
-    vprint_success("wal append index = %d\n", index);
+    vprint_success("( WAL - INFO ) : (wal append index = %d) Log -> Term : %d ,Command : %s, Key : %s, Value : %s\n", index, e->term, e->command.req_type == PUT ? "PUT" : "DEL", e->command.key, e->command.value);
     return index;
 }
 
@@ -96,11 +96,11 @@ int wal_truncate_from(int fd, int index)
 
     if (ftruncate(fd, new_size) < 0)
     {
-        print_error("wal truncate error\n");
+        print_error("( WAL - INFO ) : wal truncate error\n");
         return -1;
     }
 
     fsync(fd);
-    vprint_info("wal truncated to index=%d\n", index);
+    vprint_info("( WAL - INFO ) : wal truncated to index=%d\n", index);
     return 0;
 }

@@ -44,4 +44,7 @@ void vprint_success(const char *fmt, ...);
 void vprint_error(const char *fmt, ...);
 void vprint_info(const char *fmt, ...);
 
+void vprint_success_leader(const char *fmt, ...);
+void vprint_info_candidate(const char *fmt, ...);
+
 #endif

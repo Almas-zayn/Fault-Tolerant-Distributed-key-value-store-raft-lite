@@ -27,17 +27,17 @@ void print_header_bg(const char *title, const char *bg_color)
 
 void print_success(const char *msg)
 {
-    printf("  %s[ SUCCESS ] : %s %s\n", GREEN, msg, RESET);
+    printf("  %s SUCCESS ->  %s %s\n", GREEN, msg, RESET);
 }
 
 void print_error(const char *msg)
 {
-    printf("  %s[ ERROR ] : %s %s\n", RED, msg, RESET);
+    printf("  %s ERROR   ->  %s %s\n", RED, msg, RESET);
 }
 
 void print_info(const char *msg)
 {
-    printf("  %s[ INFO ] : %s %s\n", YELLOW, msg, RESET);
+    printf("  %s INFO    -> %s %s\n", YELLOW, msg, RESET);
 }
 
 void printHeaderName(const char *cacheName, char *color)
@@ -51,8 +51,31 @@ void printHeaderName(const char *cacheName, char *color)
 
 void vprint_success(const char *fmt, ...)
 {
-    printf("  %s[ SUCCESS ] :  ", GREEN);
+    printf("  %s SUCCESS ->  ", GREEN);
     printf("%s", LIGHT_PURPLE);
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+
+    printf("%s\n", RESET);
+}
+void vprint_success_leader(const char *fmt, ...)
+{
+    printf("  %s SUCCESS ->  ", GREEN);
+    printf("%s", LIGHT_ORANGE);
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+
+    printf("%s\n", RESET);
+}
+
+void vprint_info_candidate(const char *fmt, ...)
+{
+    printf("  %s Info    ->  ", GREEN);
+    printf("%s", LIGHT_GREEN);
     va_list args;
     va_start(args, fmt);
     vprintf(fmt, args);
@@ -63,7 +86,7 @@ void vprint_success(const char *fmt, ...)
 
 void vprint_error(const char *fmt, ...)
 {
-    printf("  %s[ ERROR ] : %s ", RED, RESET);
+    printf("  %s ERROR   ->  %s  ", RED, RESET);
     printf("%s", LIGHT_PINK);
     va_list args;
     va_start(args, fmt);
@@ -75,7 +98,7 @@ void vprint_error(const char *fmt, ...)
 
 void vprint_info(const char *fmt, ...)
 {
-    printf("  %s[ INFO ] : %s ", YELLOW, RESET);
+    printf("  %s Info    ->  ", YELLOW);
     printf("%s", CYAN);
     va_list args;
     va_start(args, fmt);
